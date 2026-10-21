@@ -323,7 +323,7 @@ async function yt(path){
 }
 async function findLive(){
   for(const st of ['active','upcoming']){
-    const j=await yt(`liveBroadcasts?part=snippet&broadcastStatus=${st}&mine=true&maxResults=5`);
+    const j=await yt(`liveBroadcasts?part=snippet&broadcastStatus=${st}&maxResults=5`);
     const it=(j.items||[]).find(i=>i.snippet&&i.snippet.liveChatId);
     if(it)return it.snippet.liveChatId;
   }
