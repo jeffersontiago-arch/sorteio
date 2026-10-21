@@ -33,6 +33,10 @@ button:disabled{opacity:.45;cursor:default}
 .note{margin:0;color:var(--mut);font-size:12px}
 .warn{color:var(--acc);font-size:12px}
 body.live .priv{display:none}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px}
+.chk input{width:auto}
+#rank li{cursor:pointer}
+button.on{background:#4a3fa0;border-color:var(--acc)}
 #st{font-size:12px;min-height:16px;color:var(--mut)}
 #plist{display:flex;flex-wrap:wrap;gap:4px;max-height:150px;overflow:auto}
 #plist span{padding:2px 8px;border-radius:99px;font-size:12px;color:#14112b;font-weight:600}
@@ -60,15 +64,18 @@ body.live .priv{display:none}
   </div>
   <h2>Participantes: <span id="cnt">0</span></h2>
   <div class="priv">
+    <label class="chk"><input type="checkbox" id="bmode" checked> Esconder nomes (modo Brawl Stars)</label>
     <div class="row"><input id="man" placeholder="Adicionar nome" aria-label="Adicionar nome"><button id="bAdd" style="flex:none">Adicionar</button></div>
     <div class="row"><button id="bTest">+30 de teste</button><button id="bClear">Limpar</button></div>
     <div id="plist"></div>
   </div>
   <button id="bGo" class="go">Iniciar sorteio</button>
-  <div class="row"><button id="bShake">Balançar a mesa</button><button id="bFollow">Seguir líder</button></div>
+  <button id="bShake">Balançar a mesa</button>
+  <div class="row"><button id="bFollow" class="on">Seguir líder</button><button id="bLast">Seguir último</button></div>
   <div id="idle"></div>
   <div class="priv" id="hint">Role ou arraste o mouse no tabuleiro para ver o trajeto inteiro. A barra à direita é o mapa: pontos vermelhos são bolinhas paradas.</div>
   <button id="bReset">Voltar ao início (mesmos nomes)</button>
+  <button id="bReveal">Revelar todos</button>
   <button id="bLive">Modo transmissão</button>
 </aside>
 <main>
@@ -103,11 +110,20 @@ body.live .priv{display:none}
 <script>
 const $=id=>document.getElementById(id);
 const cv=$('c'),ctx=cv.getContext('2d');
-const W=600,VH=800,G=210,DRAG=1.1,SP=46,PEGROWS=44,TRI_T=64,TRI_H=32,TRAPS=[14,28,42];
-let players=[],balls=[],pegs=[],segs=[],tris=[],state='ready',gateY=0,finishY=0,H=0,camY=0,R=9,rank=[],seen=new Set(),leaders=new Set(),camMode='auto',idleN=0;
+const W=600,VH=800,G=210,DRAG=1.1,SP=46,PEGROWS=88,TRI_T=64,TRI_H=32,TRAPS=[.3,.6,.9].map(f=>{let r=Math.round(PEGROWS*f);if(r%7===3)r++;return r});
+let players=[],balls=[],pegs=[],segs=[],tris=[],state='ready',gateY=0,finishY=0,H=0,camY=0,R=9,rank=[],seen=new Set(),leaders=new Set(),camMode='auto',shownCam='',idleN=0;
 
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h%360};
 const col=h=>`hsl(${h} 85% 62%)`;
+const BRAWLERS=['Shelly','Nita','Colt','Bull','Brock','El Primo','Barley','Poco','Rosa','Jessie','Dynamike','Tick','8-Bit','Rico','Darryl','Penny','Carl','Jacky','Gus','Bo','Emz','Stu','Piper','Pam','Frank','Bibi','Bea','Nani','Edgar','Griff','Grom','Bonnie','Gale','Colette','Belle','Ash','Lola','Sam','Mandy','Maisie','Hank','Pearl','Larry','Angelo','Berry','Shade','Meeple','Buzz','Fang','Eve','Janet','Otis','Buster','Gray','R-T','Willow','Doug','Chuck','Charlie','Mico','Melodie','Lily','Clancy','Moe','Kenji','Kit','Draco','Spike','Crow','Leon','Sandy','Amber','Mortis','Tara','Gene','Max','Mr. P','Sprout','Byron','Squeak','Lou','Ruffs','Surge','Cordelius','Kaze','Chester','Juju','Ollie','Pierce','Mina','Trunk','Damian','Starr Nova','Bolt','Sirius','Najia','Ziggy','Gigi','Glowbert','Finx','Lumi','Alli'];
+let pool=[],cycle=0,dupes=new Set(),brawlerMode=true;
+const al=p=>p.base+(dupes.has(p.base)?' '+p.k:'');
+const dn=p=>brawlerMode&&!p.rev?al(p):p.name;
+const rowText=b=>!brawlerMode?b.p.name:b.p.rev?al(b.p)+' → '+b.p.name:al(b.p);
+function nextAlias(){
+  if(!pool.length){pool=BRAWLERS.slice();shuffle(pool);cycle++}
+  const base=pool.pop();if(cycle>1)dupes.add(base);return{base,k:cycle};
+}
 const clampCam=v=>Math.max(0,Math.min(H-VH,v));
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}};
 function toast(t,ms=3500){const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),ms)}
@@ -119,22 +135,22 @@ function addPlayer(name,id){
   name=(name||'').trim().slice(0,24);if(!name)return false;
   id=id||('m:'+name.toLowerCase());
   if(seen.has(id))return false;
-  seen.add(id);players.push({name,id,hue:hue(id)});
+  seen.add(id);players.push({name,id,hue:hue(id),...nextAlias(),rev:false});
   renderPlayers();build();return true;
 }
 function renderPlayers(){
   $('cnt').textContent=players.length;
-  $('plist').replaceChildren(...players.slice(-300).map(p=>{const s=document.createElement('span');s.textContent=p.name;s.style.background=col(p.hue);return s}));
+  $('plist').replaceChildren(...players.slice(-300).map(p=>{const s=document.createElement('span');s.textContent=dn(p);s.title=p.name;s.style.background=col(p.hue);return s}));
 }
 
 /* ---------- mundo ---------- */
 function build(){
   R=9;
-  const cols=8,pw=74,ph=22,rows=Math.max(1,Math.ceil(players.length/cols));
+  const cols=7,pw=80,ph=22,rows=Math.max(1,Math.ceil(players.length/cols));
   gateY=24+rows*ph+20;
   balls=players.map((p,i)=>{
     const r=Math.floor(i/cols),n=Math.min(cols,players.length-r*cols),c=i%cols;
-    return{p,x:(W-n*pw)/2+c*pw+10,y:24+r*ph,vx:0,vy:0,done:false,idle:0};
+    return{p,x:(W-14-n*pw)/2+c*pw+10,y:24+r*ph,vx:0,vy:0,done:false,idle:0};
   });
   pegs=[];segs=[];tris=[];
   let y=gateY+90,row=0;
@@ -173,9 +189,11 @@ function step(dt){
     if(b.x<R){b.x=R;b.vx=Math.abs(b.vx)*.4}
     if(b.x>W-R){b.x=W-R;b.vx=-Math.abs(b.vx)*.4}
     if(b.y>H-8-R){b.y=H-8-R;if(b.vy>0)b.vy*=-.2;b.vx*=.9}
-    for(const q of pegs){
-      const dy=b.y-q.y,m=R+q.r;if(dy>m||dy<-m)continue;
-      hit(b,q.x,q.y,m,q.r>10?.9:.4);
+    let lo=0,hi=pegs.length;const y0=b.y-R-26;
+    while(lo<hi){const md=(lo+hi)>>1;if(pegs[md].y<y0)lo=md+1;else hi=md}
+    for(let i=lo;i<pegs.length;i++){
+      const q=pegs[i];if(q.y>b.y+R+26)break;
+      hit(b,q.x,q.y,R+q.r,q.r>10?.9:.4);
     }
     for(const u of segs){
       if(b.y<u.lo||b.y>u.hi)continue;
@@ -205,16 +223,21 @@ function step(dt){
     if(b.y>finishY&&!b.done){
       b.done=true;rank.push(b);b.rk=rank.length;
       const li=document.createElement('li'),bd=document.createElement('b'),dot=document.createElement('i'),nm=document.createElement('span');
-      bd.textContent=rank.length+'º';dot.style.background=col(b.p.hue);nm.textContent=b.p.name;
+      bd.textContent=rank.length+'º';dot.style.background=col(b.p.hue);nm.textContent=rowText(b);b.li=li;li.onclick=()=>revealOne(b);
       li.append(bd,dot,nm);$('rk').append(li);li.scrollIntoView({block:'nearest'});
       $('fin').textContent=`(${rank.length}/${balls.length})`;
-      if(rank.length===1)toast('🏆 1º lugar: '+b.p.name,5000);
-      if(rank.length===balls.length){state='done';li.className='last';toast('🏁 Último lugar: '+b.p.name,9000)}
+      if(rank.length===1)toast('🏆 1º lugar: '+dn(b.p),5000);
+      if(rank.length===balls.length){state='done';li.className='last';toast('🏁 Último lugar: '+dn(b.p),9000)}
     }
   }
 }
 
 /* ---------- desenho ---------- */
+function fit(t,max){
+  if(ctx.measureText(t).width<=max)return t;
+  while(t.length>1&&ctx.measureText(t+'…').width>max)t=t.slice(0,-1);
+  return t+'…';
+}
 function minimap(act){
   const x=W-14,k=VH/H;let n=0;
   ctx.fillStyle='rgba(20,17,43,.8)';ctx.fillRect(x,0,14,VH);
@@ -231,11 +254,16 @@ function draw(){
   ctx.setTransform(s,0,0,s,0,0);
   ctx.clearRect(0,0,W,VH);
   const act=balls.filter(b=>!b.done);
-  if(camMode==='auto'){
+  if(camMode==='auto'||camMode==='last'){
     let target=0;
-    if(state!=='ready'){const lead=act.length?Math.max(...act.map(b=>b.y)):finishY;target=clampCam(lead-VH*.4)}
+    if(state!=='ready'){
+      const ys=act.map(b=>b.y);
+      const f=!ys.length?finishY:camMode==='last'?Math.min(...ys):Math.max(...ys);
+      target=clampCam(f-VH*.4);
+    }
     camY+=(target-camY)*.08;
   }
+  if(camMode!==shownCam){shownCam=camMode;$('bFollow').classList.toggle('on',camMode==='auto');$('bLast').classList.toggle('on',camMode==='last')}
   camY=clampCam(camY);
   leaders=new Set(act.slice().sort((a,b)=>b.y-a.y).slice(0,8));
   ctx.save();ctx.translate(0,-camY);
@@ -257,7 +285,7 @@ function draw(){
     ctx.lineWidth=2;ctx.strokeStyle=leaders.has(b)&&state==='run'?'#ffc83d':'#fff';ctx.stroke();
     if(b.done){ctx.fillStyle='#14112b';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillText(b.rk,b.x,b.y+.5);ctx.font='bold 10px sans-serif'}
     if(b.idle>2&&!b.done){ctx.beginPath();ctx.arc(b.x,b.y,R+4,0,7);ctx.lineWidth=3;ctx.strokeStyle='#ff4d6d';ctx.stroke()}
-    const nm=b.p.name.length>11?b.p.name.slice(0,10)+'…':b.p.name,left=b.x>W-72,tx=left?b.x-R-4:b.x+R+4;
+    const nm=fit(dn(b.p),state==='ready'?57:80),left=b.x+R+4+ctx.measureText(nm).width>W-16,tx=left?b.x-R-4:b.x+R+4;
     ctx.textAlign=left?'right':'left';
     ctx.lineWidth=3;ctx.strokeStyle='#0e0c20';ctx.strokeText(nm,tx,b.y);ctx.fillStyle='#fff';ctx.fillText(nm,tx,b.y);
   }
@@ -277,18 +305,25 @@ function loop(t){
 }
 
 /* ---------- controles ---------- */
+function refreshRows(){for(const b of rank)if(b.li)b.li.querySelector('span').textContent=rowText(b)}
+function revealOne(b){
+  if(!brawlerMode||b.p.rev)return;
+  b.p.rev=true;refreshRows();
+  toast(`${al(b.p)} é ${b.p.name}! 🎉`,7000);
+}
+function revealAll(){players.forEach(p=>p.rev=true);refreshRows();renderPlayers();toast('Todos revelados!',3000)}
 function start(){
   if(state!=='ready'||!players.length){status('Adicione participantes antes de iniciar.',true);return}
-  shuffle(players);build();camY=0;rank=[];$('rk').replaceChildren();$('fin').textContent=`(0/${balls.length})`;
+  players.forEach(p=>p.rev=false);shuffle(players);build();camY=0;rank=[];$('rk').replaceChildren();$('fin').textContent=`(0/${balls.length})`;
   balls.forEach(b=>b.vx=(Math.random()-.5)*20);camMode='auto';state='run';
 }
-function reset(){state='ready';rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
+function reset(){players.forEach(p=>p.rev=false);state='ready';rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
 function shake(){
   if(state!=='run')return;
   for(const b of balls){if(b.done)continue;b.vx+=(Math.random()-.5)*500;b.vy-=Math.random()*220;b.idle=0}
   toast('Balançou a mesa!',1500);
 }
-$('bShake').onclick=shake;$('bFollow').onclick=()=>{camMode='auto'};
+$('bShake').onclick=shake;$('bFollow').onclick=()=>{camMode='auto'};$('bLast').onclick=()=>{camMode='last'};
 let drag=null;
 const camRect=()=>cv.getBoundingClientRect();
 const jump=e=>{const r=camRect();camY=clampCam((e.clientY-r.top)/r.height*H-VH/2)};
@@ -296,13 +331,15 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);const r=
 cv.addEventListener('pointermove',e=>{if(!drag)return;if(drag.mini)jump(e);else{camY=clampCam(camY-(e.clientY-drag.y)*VH/camRect().height);drag.y=e.clientY}});
 cv.addEventListener('pointerup',()=>drag=null);
 cv.addEventListener('wheel',e=>{e.preventDefault();camMode='free';camY=clampCam(camY+e.deltaY*VH/camRect().height)},{passive:false});
+$('bReveal').onclick=revealAll;
+$('bmode').onchange=e=>{brawlerMode=e.target.checked;renderPlayers();refreshRows()};
 $('bGo').onclick=start;
 $('bReset').onclick=reset;
 $('bAdd').onclick=()=>{if(addPlayer($('man').value))$('man').value=''};
 $('man').onkeydown=e=>{if(e.key==='Enter')$('bAdd').click()};
 $('bTest').onclick=()=>{const n=['Ana','Bruno','Carla','Diego','Eva','Fábio','Gi','Hugo','Iris','João','Kaká','Lia','Marcos','Nina','Otto','Paula','Rafa','Sol','Tiago','Uma','Vitor','Wesley','Xuxa','Yuri','Zeca','Bia','Caio','Duda','Enzo','Flor'];
   if(state!=='ready')return;const k=Math.random().toString(36).slice(2,5);n.forEach(x=>addPlayer(x+'_'+k,'t:'+x+k))};
-$('bClear').onclick=()=>{if(state==='run')return;players=[];seen=new Set();rank=[];$('rk').replaceChildren();$('fin').textContent='';state='ready';renderPlayers();build()};
+$('bClear').onclick=()=>{if(state==='run')return;players=[];pool=[];cycle=0;dupes=new Set();seen=new Set();rank=[];$('rk').replaceChildren();$('fin').textContent='';state='ready';renderPlayers();build()};
 
 /* ---------- YouTube ---------- */
 const SCOPE='https://www.googleapis.com/auth/youtube.readonly';
