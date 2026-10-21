@@ -33,6 +33,7 @@ button:disabled{opacity:.45;cursor:default}
 .note{margin:0;color:var(--mut);font-size:12px}
 .warn{color:var(--acc);font-size:12px}
 body.live .priv{display:none}
+.row>.chk{flex:none;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:#2c2858;cursor:pointer}
 .chk{display:flex;gap:8px;align-items:center;font-size:13px}
 .chk input{width:auto}
 #rank li{cursor:pointer}
@@ -67,7 +68,7 @@ summary{cursor:pointer;color:var(--acc);font-weight:700}
   <h1>Sorteio de Bolinhas</h1>
   <h2>Participantes: <span id="cnt">0</span></h2>
   <button id="bGo" class="go">Iniciar sorteio</button>
-  <button id="bShake">Balançar a mesa</button>
+  <div class="row"><button id="bShake">Balançar a mesa</button><label class="chk" title="Balança a mesa sozinho se alguma bolinha ficar parada por mais de 5 segundos"><input type="checkbox" id="auto"> Automático</label></div>
   <div class="row"><button id="bFollow" class="on">Seguir líder</button><button id="bLast">Seguir último</button></div>
   <div id="idle"></div>
   <button id="bReveal" disabled title="Disponível quando todos cruzarem a linha de chegada">Revelar todos</button>
@@ -79,6 +80,8 @@ summary{cursor:pointer;color:var(--acc);font-weight:700}
       <div id="st"></div>
       <div class="row"><button id="bSetup">Conectar canal</button><button id="bStop" disabled>Desconectar</button></div>
       <div><label for="cmd">Comando para entrar</label><input id="cmd" value="!play"></div>
+      <h2>Velocidade do sorteio (teste)</h2>
+      <div class="row"><button id="bS1" class="on">1x</button><button id="bS2">2x</button><button id="bS5">5x</button><button id="bS10">10x</button></div>
       <h2>Testes</h2>
       <div class="row"><input id="man" placeholder="Adicionar nome" aria-label="Adicionar nome"><button id="bAdd" style="flex:none">Adicionar</button></div>
       <button id="bTest">+30 de teste</button>
@@ -126,7 +129,7 @@ let players=[],balls=[],pegs=[],segs=[],tris=[],state='ready',gateY=0,finishY=0,
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h%360};
 const col=h=>`hsl(${h} 85% 62%)`;
 const BRAWLERS=['Shelly', 'Colt', 'Bull', 'Brock', 'Rico', 'Spike', 'Corvo', 'Nita', 'El Primo', 'Barley', 'Poco', 'Jessie', 'Dynamike', 'Bo', 'Mortis', 'Tara', 'Piper', 'Pam', 'Darryl', 'Penny', 'Frank', 'Eugênio', 'Carl', 'Rosa', 'Bibi', 'Tick', '8-Bit', 'Sandy', 'EMZ', 'Bea', 'Max', 'Mister P', 'Jacky', 'Sprout', 'Gale', 'Nani', 'Surge', 'Colette', 'Amber', 'Lou', 'Byron', 'Edgar', 'Ruffs', 'Stu', 'Belle', 'Squeak', 'Buzz', 'Griff', 'Ash', 'Meg', 'Lola', 'Grom', 'Fang', 'Eve', 'Janet', 'Otis', 'Sam', 'Gus', 'Buster', 'Chester', 'Gray', 'Mandy', 'R-T', 'Willow', 'Maisie', 'Hank', 'Cordelius', 'Doug', 'Pearl', 'Chuck', 'Charlie', 'Mico', 'Kit', 'Larry & Lawrie', 'Angelo', 'Melodie', 'Lily', 'Draco', 'Berry', 'Clancy', 'Moe', 'Kenji', 'Juju', 'Shade', 'Meeple', 'Glowy', 'Finx', 'Alli', 'Jae-yong', 'Lumi', 'Kaze', 'Gigi', 'Ollie', 'Pierce', 'Ziggy', 'Trunk', 'Mina', 'Najia', 'Starr Nova', 'Sirius', 'Bolt', 'Cosmo', 'Wendy', 'Damian', 'Vince', 'Nori'];
-const COUNTDOWN=30;let cdEnd=0,shakeEnd=0,raceT=0;
+const COUNTDOWN=30;let speed=1,cdSpeed=1,cdEnd=0,shakeEnd=0,raceT=0;
 const REDUCE=typeof matchMedia!=='undefined'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 let pool=[],cycle=0,dupes=new Set(),brawlerMode=false;
 const al=p=>p.base+(dupes.has(p.base)?' '+p.k:'');
@@ -252,7 +255,7 @@ function step(dt){
 
 /* ---------- desenho ---------- */
 function drawCountdown(){
-  const left=Math.max(0,Math.ceil((cdEnd-Date.now())/1000)),cx=(W-14)/2,cy=VH/2;
+  const left=Math.max(0,Math.ceil((cdEnd-Date.now())/1000*cdSpeed)),cx=(W-14)/2,cy=VH/2;
   ctx.fillStyle='rgba(14,12,32,.85)';ctx.fillRect(30,cy-200,W-14-60,330);
   ctx.strokeStyle='#ffc83d';ctx.lineWidth=3;ctx.strokeRect(30,cy-200,W-14-60,330);
   ctx.textAlign='center';ctx.textBaseline='middle';
@@ -288,7 +291,7 @@ function draw(){
       const f=!ys.length?finishY:camMode==='last'?Math.min(...ys):Math.max(...ys);
       target=clampCam(f-VH*.4);
     }
-    camY+=(target-camY)*.08;
+    camY+=(target-camY)*(1-Math.pow(.92,speed));
   }
   if(camMode!==shownCam){shownCam=camMode;$('bFollow').classList.toggle('on',camMode==='auto');$('bLast').classList.toggle('on',camMode==='last')}
   camY=clampCam(camY);
@@ -321,6 +324,7 @@ function draw(){
   ctx.restore();
   minimap(act);
   if(state==='countdown')drawCountdown();
+  if(speed!==1){ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle='#ffc83d';ctx.font='bold 15px sans-serif';ctx.fillText('⚡ '+speed+'x',10,8)}
   if(state==='ready'&&!players.length){
     ctx.fillStyle='#a9a3d6';ctx.font='18px sans-serif';ctx.textAlign='center';
     ctx.fillText('Aguardando participantes…',W/2,VH/2);
@@ -334,7 +338,9 @@ function loop(t){
   const bloq=state!=='done',rb=$('bReveal');if(rb.disabled!==bloq)rb.disabled=bloq;
   const trav=state==='countdown'||state==='run';
   for(const id of ['bReset','bClear']){const b2=$(id);if(b2.disabled!==trav)b2.disabled=trav}
-  for(let i=0;i<4;i++)step(dt/4);
+  const T=dt*speed,n=Math.max(4,Math.ceil(T/.008));
+  for(let i=0;i<n;i++)step(T/n);
+  if(state==='run'&&$('auto').checked&&balls.some(b=>!b.done&&b.idle>5))shake(true);
   draw();requestAnimationFrame(loop);
 }
 
@@ -366,7 +372,7 @@ function start(){
   if(state!=='ready')return;
   if(!players.length){status('Adicione participantes antes de iniciar.',true);toast('Ainda não há participantes.',2000);return}
   if(!brawlerMode)hideNames();
-  camMode='auto';camY=0;cdEnd=Date.now()+COUNTDOWN*1000;state='countdown';$('bGo').disabled=true;
+  camMode='auto';camY=0;cdSpeed=speed;cdEnd=Date.now()+COUNTDOWN*1000/cdSpeed;state='countdown';$('bGo').disabled=true;
 }
 function tickCountdown(){if(state==='countdown'&&Date.now()>=cdEnd)beginRace()}
 function beginRace(){
@@ -375,11 +381,11 @@ function beginRace(){
   toast('Valendo! 🎱',2000);
 }
 function reset(){if(state==='countdown'||state==='run')return;players.forEach(p=>p.rev=false);state='ready';$('bGo').disabled=false;rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
-function shake(){
+function shake(auto){
   if(state!=='run')return;
   for(const b of balls){if(b.done)continue;b.vx+=(Math.random()-.5)*500;b.vy-=Math.random()*220;b.idle=0}
   shakeEnd=Date.now()+550;
-  toast('Balançou a mesa!',1500);
+  toast(auto===true?'Balançou a mesa automaticamente!':'Balançou a mesa!',1500);
 }
 $('bShake').onclick=shake;$('bFollow').onclick=()=>{camMode='auto'};$('bLast').onclick=()=>{camMode='last'};
 let drag=null;
@@ -390,6 +396,8 @@ cv.addEventListener('pointermove',e=>{if(!drag)return;if(drag.mini)jump(e);else{
 cv.addEventListener('pointerup',()=>drag=null);
 cv.addEventListener('wheel',e=>{e.preventDefault();camMode='free';camY=clampCam(camY+e.deltaY*VH/camRect().height)},{passive:false});
 $('bReveal').onclick=revealAll;
+function setSpeed(v){speed=v;for(const k of [1,2,5,10])$('bS'+k).classList.toggle('on',k===v);toast(v===1?'Velocidade normal':'Velocidade '+v+'x (modo teste)',2000)}
+[1,2,5,10].forEach(v=>{$('bS'+v).onclick=()=>setSpeed(v)});
 $('bGo').onclick=start;
 $('bReset').onclick=reset;
 $('bAdd').onclick=()=>{if(addPlayer($('man').value))$('man').value=''};
@@ -493,6 +501,7 @@ async function keyConnect(){
 $('bSetup').onclick=openSetup;$('bClose').onclick=closeSetup;
 $('bGoogle').onclick=googleLogin;$('bKey').onclick=keyConnect;$('bStop').onclick=()=>stop();
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSetup()});
+$('auto').checked=LS.get('auto_shake')==='1';$('auto').onchange=()=>LS.set('auto_shake',$('auto').checked?'1':'0');
 $('cid').value=LS.get('yt_cid');$('key').value=LS.get('yt_key');$('vid').value=LS.get('yt_vid');
 $('fileWarn').hidden=location.protocol!=='file:';
 build();requestAnimationFrame(loop);
