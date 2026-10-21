@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sorteio de Bolinhas</title>
+<style>
+:root{--bg:#15132b;--panel:#201d40;--line:#3a3569;--txt:#f3f0ff;--mut:#a9a3d6;--acc:#ffc83d;--ok:#4fe0a0;--err:#ff6b8a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--txt);font:14px/1.4 "Avenir Next","Nunito",system-ui,sans-serif;display:flex;gap:12px;padding:12px}
+aside{width:290px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+main{flex:1;min-width:0;display:flex;justify-content:center;align-items:center;position:relative}
+canvas{touch-action:none;cursor:grab;height:100%;max-width:100%;aspect-ratio:3/4;background:#0e0c20;border:1px solid var(--line);border-radius:12px}
+h1{font-size:20px;margin:0}
+h2{font-size:14px;margin:6px 0 0;color:var(--acc)}
+label{display:block;color:var(--mut);font-size:12px;margin-bottom:2px}
+input{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#15132b;color:var(--txt);font:inherit}
+input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button{padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:#2c2858;color:var(--txt);font:inherit;cursor:pointer}
+button:hover{background:#38336f}
+button:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:6px}.row>*{flex:1}
+.go{background:var(--acc);color:#2a2000;font-weight:700;font-size:16px;padding:12px;border-color:var(--acc)}
+.go:hover{background:#ffd666}
+#idle{color:var(--err);font-weight:700;min-height:18px}
+#hint{font-size:12px;color:var(--mut)}
+#rank li.last{background:#4a2147;border-radius:6px;font-weight:700}
+#setup{position:fixed;inset:0;background:rgba(10,8,25,.88);display:flex;align-items:center;justify-content:center;z-index:10}
+#setup[hidden]{display:none}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;width:min(480px,92vw);max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.card h3{font-size:13px;margin:10px 0 0}
+.note{margin:0;color:var(--mut);font-size:12px}
+.warn{color:var(--acc);font-size:12px}
+body.live .priv{display:none}
+#st{font-size:12px;min-height:16px;color:var(--mut)}
+#plist{display:flex;flex-wrap:wrap;gap:4px;max-height:150px;overflow:auto}
+#plist span{padding:2px 8px;border-radius:99px;font-size:12px;color:#14112b;font-weight:600}
+#rank ol{margin:0;padding:0;list-style:none}
+#rank li{display:flex;gap:8px;padding:5px 6px;border-bottom:1px solid var(--line);align-items:center}
+#rank li b{width:34px;color:var(--mut)}
+#rank li:nth-child(-n+3) b{color:var(--acc)}
+#rank li:first-child{background:#2f2a5f;border-radius:6px;font-weight:700}
+#rank li i{width:10px;height:10px;border-radius:50%;flex:none}
+#rank li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#toast{position:absolute;top:18px;left:50%;transform:translateX(-50%);background:var(--acc);color:#2a2000;font-weight:800;padding:10px 20px;border-radius:99px;font-size:18px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+@media(max-width:900px){body{flex-direction:column;height:auto}aside{width:auto}main{height:80vh}}
+@media(prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<aside id="side">
+  <h1>Sorteio de Bolinhas</h1>
+  <div class="priv">
+    <h2>YouTube</h2>
+    <div id="st"></div>
+    <div class="row"><button id="bSetup">Conectar canal</button><button id="bStop" disabled>Desconectar</button></div>
+    <div><label for="cmd">Comando para entrar</label><input id="cmd" value="!play"></div>
+  </div>
+  <h2>Participantes: <span id="cnt">0</span></h2>
+  <div class="priv">
+    <div class="row"><input id="man" placeholder="Adicionar nome" aria-label="Adicionar nome"><button id="bAdd" style="flex:none">Adicionar</button></div>
+    <div class="row"><button id="bTest">+30 de teste</button><button id="bClear">Limpar</button></div>
+    <div id="plist"></div>
+  </div>
+  <button id="bGo" class="go">Iniciar sorteio</button>
+  <div class="row"><button id="bShake">Balançar a mesa</button><button id="bFollow">Seguir líder</button></div>
+  <div id="idle"></div>
+  <div class="priv" id="hint">Role ou arraste o mouse no tabuleiro para ver o trajeto inteiro. A barra à direita é o mapa: pontos vermelhos são bolinhas paradas.</div>
+  <button id="bReset">Voltar ao início (mesmos nomes)</button>
+  <button id="bLive">Modo transmissão</button>
+</aside>
+<main>
+  <canvas id="c" width="1200" height="1600"></canvas>
+  <div id="toast"></div>
+</main>
+<aside id="rank">
+  <h2>Classificação <span id="fin"></span></h2>
+  <ol id="rk"></ol>
+</aside>
+
+<div id="setup">
+  <div class="card">
+    <h2>Conectar ao YouTube</h2>
+    <p class="note">Faça isso antes de entrar ao vivo. Os dados ficam só neste navegador e somem da tela depois de conectar.</p>
+    <h3>Opção 1: entrar com a conta do canal (recomendada)</h3>
+    <label for="cid">ID do cliente OAuth do Google (só na primeira vez)</label>
+    <input id="cid" type="password" autocomplete="off">
+    <button id="bGoogle" class="go">Entrar com Google e achar minha live</button>
+    <div id="fileWarn" class="warn" hidden>Você abriu a página como arquivo. O login do Google só funciona abrindo por um endereço http, como http://localhost:8000 ou um site seu.</div>
+    <h3>Opção 2: chave de API + link da live</h3>
+    <label for="key">Chave de API</label>
+    <input id="key" type="password" autocomplete="off">
+    <label for="vid">Link ou ID da live</label>
+    <input id="vid" placeholder="https://youtube.com/watch?v=...">
+    <button id="bKey">Conectar com a chave</button>
+    <div id="sst"></div>
+    <button id="bClose">Fechar (usar só nomes manuais)</button>
+  </div>
+</div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const W=600,VH=800,G=210,DRAG=1.1,SP=46,PEGROWS=44,TRI_T=64,TRI_H=32,TRAPS=[14,28,42];
+let players=[],balls=[],pegs=[],segs=[],tris=[],state='ready',gateY=0,finishY=0,H=0,camY=0,R=9,rank=[],seen=new Set(),leaders=new Set(),camMode='auto',idleN=0;
+
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h%360};
+const col=h=>`hsl(${h} 85% 62%)`;
+const clampCam=v=>Math.max(0,Math.min(H-VH,v));
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}};
+function toast(t,ms=3500){const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),ms)}
+function status(t,bad){const e=$('st');e.textContent=t;e.style.color=bad?'var(--err)':'var(--mut)'}
+
+/* ---------- participantes ---------- */
+function addPlayer(name,id){
+  if(state!=='ready')return false;
+  name=(name||'').trim().slice(0,24);if(!name)return false;
+  id=id||('m:'+name.toLowerCase());
+  if(seen.has(id))return false;
+  seen.add(id);players.push({name,id,hue:hue(id)});
+  renderPlayers();build();return true;
+}
+function renderPlayers(){
+  $('cnt').textContent=players.length;
+  $('plist').replaceChildren(...players.slice(-300).map(p=>{const s=document.createElement('span');s.textContent=p.name;s.style.background=col(p.hue);return s}));
+}
+
+/* ---------- mundo ---------- */
+function build(){
+  R=9;
+  const cols=8,pw=74,ph=22,rows=Math.max(1,Math.ceil(players.length/cols));
+  gateY=24+rows*ph+20;
+  balls=players.map((p,i)=>{
+    const r=Math.floor(i/cols),n=Math.min(cols,players.length-r*cols),c=i%cols;
+    return{p,x:(W-n*pw)/2+c*pw+10,y:24+r*ph,vx:0,vy:0,done:false,idle:0};
+  });
+  pegs=[];segs=[];tris=[];
+  let y=gateY+90,row=0;
+  for(;row<PEGROWS;row++,y+=SP*1.2){
+    if(row%7===3){
+      [.22,.5,.78].forEach(f=>pegs.push({x:W*f,y,r:24}));
+      [[0,1],[W,-1]].forEach(([x,d])=>{
+        tris.push({x,y,d});
+        for(const [a,b,c,e] of [[x,y-TRI_H,x+d*TRI_T,y],[x+d*TRI_T,y,x,y+TRI_H]])
+          segs.push({x1:a,y1:b,x2:c,y2:e,lo:Math.min(b,e)-R-4,hi:Math.max(b,e)+R+4});
+      });
+      continue;
+    }
+    const xs=[];for(let x=(row%2?SP:SP/2+6);x<=W-28;x+=SP)xs.push(x);
+    const ti=TRAPS.includes(row)?2+Math.floor(Math.random()*(xs.length-4)):-1;
+    xs.forEach((x,i)=>{if(i===ti)pegs.push({x:x-11,y,r:6},{x:x+11,y,r:6});else pegs.push({x,y,r:6})});
+  }
+  finishY=y+80;H=finishY+330;
+}
+
+function hit(b,cx,cy,m,e){
+  const dx=b.x-cx,dy=b.y-cy,d2=dx*dx+dy*dy;
+  if(d2>=m*m)return;
+  const d=Math.sqrt(d2)||.01,nx=dx/d,ny=dy/d;
+  b.x=cx+nx*m;b.y=cy+ny*m;
+  const vn=b.vx*nx+b.vy*ny;
+  if(vn<0){b.vx-=(1+e)*vn*nx;b.vy-=(1+e)*vn*ny}
+}
+function step(dt){
+  if(state==='ready')return;
+  const run=state==='run',A=[];
+  for(const b of balls){
+    b.vy+=G*dt;const dr=b.done?DRAG*4:DRAG;b.vx*=1-dr*dt;b.vy*=1-dr*dt;
+    const sp=Math.hypot(b.vx,b.vy);if(sp>1300){b.vx*=1300/sp;b.vy*=1300/sp}
+    b.x+=b.vx*dt;b.y+=b.vy*dt;
+    if(b.x<R){b.x=R;b.vx=Math.abs(b.vx)*.4}
+    if(b.x>W-R){b.x=W-R;b.vx=-Math.abs(b.vx)*.4}
+    if(b.y>H-8-R){b.y=H-8-R;if(b.vy>0)b.vy*=-.2;b.vx*=.9}
+    for(const q of pegs){
+      const dy=b.y-q.y,m=R+q.r;if(dy>m||dy<-m)continue;
+      hit(b,q.x,q.y,m,q.r>10?.9:.4);
+    }
+    for(const u of segs){
+      if(b.y<u.lo||b.y>u.hi)continue;
+      const ex=u.x2-u.x1,ey=u.y2-u.y1;
+      let t=((b.x-u.x1)*ex+(b.y-u.y1)*ey)/(ex*ex+ey*ey);t=t<0?0:t>1?1:t;
+      hit(b,u.x1+ex*t,u.y1+ey*t,R+2,.3);
+    }
+    if(sp<20)b.idle+=dt;else b.idle=0;
+    A.push(b);
+  }
+  const n=A.length,D=2*R;
+  for(let i=0;i<n;i++){
+    const a=A[i];
+    for(let j=i+1;j<n;j++){
+      const b=A[j],dx=b.x-a.x;if(dx>D||dx<-D)continue;
+      const dy=b.y-a.y;if(dy>D||dy<-D)continue;
+      const d2=dx*dx+dy*dy;
+      if(d2<D*D&&d2>0){
+        const d=Math.sqrt(d2),nx=dx/d,ny=dy/d,o=(D-d)/2;
+        a.x-=nx*o;a.y-=ny*o;b.x+=nx*o;b.y+=ny*o;
+        const vn=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+        if(vn<0){const k=vn*.6;a.vx+=k*nx;a.vy+=k*ny;b.vx-=k*nx;b.vy-=k*ny}
+      }
+    }
+  }
+  if(run)for(const b of A){
+    if(b.y>finishY&&!b.done){
+      b.done=true;rank.push(b);b.rk=rank.length;
+      const li=document.createElement('li'),bd=document.createElement('b'),dot=document.createElement('i'),nm=document.createElement('span');
+      bd.textContent=rank.length+'º';dot.style.background=col(b.p.hue);nm.textContent=b.p.name;
+      li.append(bd,dot,nm);$('rk').append(li);li.scrollIntoView({block:'nearest'});
+      $('fin').textContent=`(${rank.length}/${balls.length})`;
+      if(rank.length===1)toast('🏆 1º lugar: '+b.p.name,5000);
+      if(rank.length===balls.length){state='done';li.className='last';toast('🏁 Último lugar: '+b.p.name,9000)}
+    }
+  }
+}
+
+/* ---------- desenho ---------- */
+function minimap(act){
+  const x=W-14,k=VH/H;let n=0;
+  ctx.fillStyle='rgba(20,17,43,.8)';ctx.fillRect(x,0,14,VH);
+  for(const b of act){
+    const st=b.idle>2;if(st)n++;
+    ctx.fillStyle=st?'#ff4d6d':'#fff';const z=st?3:1.5;ctx.fillRect(x+7-z/2,b.y*k-z/2,z,z);
+  }
+  ctx.fillStyle='#7fe3ff';ctx.fillRect(x,finishY*k,14,1);
+  ctx.strokeStyle='#ffc83d';ctx.lineWidth=1;ctx.strokeRect(x+.5,camY*k,13,VH*k);
+  if(n!==idleN){idleN=n;$('idle').textContent=n?`Paradas: ${n}`:''}
+}
+function draw(){
+  const s=cv.width/W;
+  ctx.setTransform(s,0,0,s,0,0);
+  ctx.clearRect(0,0,W,VH);
+  const act=balls.filter(b=>!b.done);
+  if(camMode==='auto'){
+    let target=0;
+    if(state!=='ready'){const lead=act.length?Math.max(...act.map(b=>b.y)):finishY;target=clampCam(lead-VH*.4)}
+    camY+=(target-camY)*.08;
+  }
+  camY=clampCam(camY);
+  leaders=new Set(act.slice().sort((a,b)=>b.y-a.y).slice(0,8));
+  ctx.save();ctx.translate(0,-camY);
+  if(state==='ready'){ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(0,8,W,gateY-8)}
+  for(let x=0;x<W;x+=20){ctx.fillStyle=(x/20)%2?'#f3f0ff':'#2a2650';ctx.fillRect(x,finishY,20,10);ctx.fillStyle=(x/20)%2?'#2a2650':'#f3f0ff';ctx.fillRect(x,finishY+10,20,10)}
+  ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(0,finishY+20,W,H-finishY-20);
+  ctx.fillStyle='#ffc83d';ctx.fillRect(0,H-8,W,4);
+  ctx.fillStyle='#f3f0ff';
+  for(const t of tris){
+    if(t.y<camY-60||t.y>camY+VH+60)continue;
+    ctx.beginPath();ctx.moveTo(t.x,t.y-TRI_H);ctx.lineTo(t.x+t.d*TRI_T,t.y);ctx.lineTo(t.x,t.y+TRI_H);ctx.closePath();ctx.fill();
+  }
+  for(const q of pegs){if(q.y<camY-30||q.y>camY+VH+30)continue;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,7);ctx.fillStyle=q.r>10?'#ff7fb0':'#cfc9ff';ctx.fill()}
+  ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='#0e0c20';ctx.lineJoin='round';
+  ctx.font='bold 10px sans-serif';ctx.textBaseline='middle';
+  for(const b of balls){
+    if(b.y<camY-20||b.y>camY+VH+20)continue;
+    ctx.beginPath();ctx.arc(b.x,b.y,R,0,7);ctx.fillStyle=col(b.p.hue);ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle=leaders.has(b)&&state==='run'?'#ffc83d':'#fff';ctx.stroke();
+    if(b.done){ctx.fillStyle='#14112b';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillText(b.rk,b.x,b.y+.5);ctx.font='bold 10px sans-serif'}
+    if(b.idle>2&&!b.done){ctx.beginPath();ctx.arc(b.x,b.y,R+4,0,7);ctx.lineWidth=3;ctx.strokeStyle='#ff4d6d';ctx.stroke()}
+    const nm=b.p.name.length>11?b.p.name.slice(0,10)+'…':b.p.name,left=b.x>W-72,tx=left?b.x-R-4:b.x+R+4;
+    ctx.textAlign=left?'right':'left';
+    ctx.lineWidth=3;ctx.strokeStyle='#0e0c20';ctx.strokeText(nm,tx,b.y);ctx.fillStyle='#fff';ctx.fillText(nm,tx,b.y);
+  }
+  ctx.restore();
+  minimap(act);
+  if(state==='ready'&&!players.length){
+    ctx.fillStyle='#a9a3d6';ctx.font='18px sans-serif';ctx.textAlign='center';
+    ctx.fillText('Aguardando participantes…',W/2,VH/2);
+  }
+}
+
+let last=performance.now();
+function loop(t){
+  const dt=Math.min(.05,(t-last)/1000);last=t;
+  for(let i=0;i<4;i++)step(dt/4);
+  draw();requestAnimationFrame(loop);
+}
+
+/* ---------- controles ---------- */
+function start(){
+  if(state!=='ready'||!players.length){status('Adicione participantes antes de iniciar.',true);return}
+  shuffle(players);build();camY=0;rank=[];$('rk').replaceChildren();$('fin').textContent=`(0/${balls.length})`;
+  balls.forEach(b=>b.vx=(Math.random()-.5)*20);camMode='auto';state='run';
+}
+function reset(){state='ready';rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
+function shake(){
+  if(state!=='run')return;
+  for(const b of balls){if(b.done)continue;b.vx+=(Math.random()-.5)*500;b.vy-=Math.random()*220;b.idle=0}
+  toast('Balançou a mesa!',1500);
+}
+$('bShake').onclick=shake;$('bFollow').onclick=()=>{camMode='auto'};
+let drag=null;
+const camRect=()=>cv.getBoundingClientRect();
+const jump=e=>{const r=camRect();camY=clampCam((e.clientY-r.top)/r.height*H-VH/2)};
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);const r=camRect();drag={mini:(e.clientX-r.left)/r.width*W>W-26,y:e.clientY};camMode='free';if(drag.mini)jump(e)});
+cv.addEventListener('pointermove',e=>{if(!drag)return;if(drag.mini)jump(e);else{camY=clampCam(camY-(e.clientY-drag.y)*VH/camRect().height);drag.y=e.clientY}});
+cv.addEventListener('pointerup',()=>drag=null);
+cv.addEventListener('wheel',e=>{e.preventDefault();camMode='free';camY=clampCam(camY+e.deltaY*VH/camRect().height)},{passive:false});
+$('bGo').onclick=start;
+$('bReset').onclick=reset;
+$('bAdd').onclick=()=>{if(addPlayer($('man').value))$('man').value=''};
+$('man').onkeydown=e=>{if(e.key==='Enter')$('bAdd').click()};
+$('bTest').onclick=()=>{const n=['Ana','Bruno','Carla','Diego','Eva','Fábio','Gi','Hugo','Iris','João','Kaká','Lia','Marcos','Nina','Otto','Paula','Rafa','Sol','Tiago','Uma','Vitor','Wesley','Xuxa','Yuri','Zeca','Bia','Caio','Duda','Enzo','Flor'];
+  if(state!=='ready')return;const k=Math.random().toString(36).slice(2,5);n.forEach(x=>addPlayer(x+'_'+k,'t:'+x+k))};
+$('bClear').onclick=()=>{if(state==='run')return;players=[];seen=new Set();rank=[];$('rk').replaceChildren();$('fin').textContent='';state='ready';renderPlayers();build()};
+
+/* ---------- YouTube ---------- */
+const SCOPE='https://www.googleapis.com/auth/youtube.readonly';
+let polling=false,accessToken='',tokenExp=0,apiKey='';
+const vidId=s=>{s=s.trim();const m=s.match(/(?:v=|youtu\.be\/|\/live\/|\/embed\/)([\w-]{11})/);return m?m[1]:s};
+const LS={get:k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const sst=(t,bad)=>{const e=$('sst');e.textContent=t;e.style.color=bad?'var(--err)':'var(--mut)'};
+const openSetup=()=>{$('setup').hidden=false};
+const closeSetup=()=>{$('setup').hidden=true};
+function btns(){$('bStop').disabled=!polling;$('bGoogle').disabled=polling;$('bKey').disabled=polling}
+async function yt(path){
+  let url='https://www.googleapis.com/youtube/v3/'+path;const o={};
+  if(accessToken)o.headers={Authorization:'Bearer '+accessToken};
+  else url+=(path.includes('?')?'&':'?')+'key='+encodeURIComponent(apiKey);
+  const r=await fetch(url,o),j=await r.json();
+  if(j.error)throw new Error(j.error.message);
+  return j;
+}
+async function findLive(){
+  for(const st of ['active','upcoming']){
+    const j=await yt(`liveBroadcasts?part=snippet&broadcastStatus=${st}&mine=true&maxResults=5`);
+    const it=(j.items||[]).find(i=>i.snippet&&i.snippet.liveChatId);
+    if(it)return it.snippet.liveChatId;
+  }
+  return null;
+}
+async function pollChat(chat){
+  polling=true;btns();status('Conectado. Aguardando o comando no chat…');
+  let token='';
+  try{
+    while(polling){
+      if(accessToken&&Date.now()>tokenExp-30000)throw new Error('a sessão do Google expirou, conecte de novo');
+      const j=await yt(`liveChat/messages?liveChatId=${chat}&part=snippet,authorDetails&maxResults=200`+(token?'&pageToken='+token:''));
+      token=j.nextPageToken;
+      const cmd=$('cmd').value.trim().toLowerCase();
+      for(const m of j.items||[]){
+        const t=(m.snippet.displayMessage||'').trim().toLowerCase();
+        if(t===cmd)addPlayer(m.authorDetails.displayName,'yt:'+m.authorDetails.channelId);
+      }
+      status(`Conectado · ${players.length} participante(s)`+(state!=='ready'?' · inscrições fechadas':''));
+      await new Promise(r=>setTimeout(r,Math.max(j.pollingIntervalMillis||5000,5000)));
+    }
+  }catch(e){status('Erro: '+e.message,true);stop(true)}
+}
+function stop(keep){polling=false;btns();if(!keep)status('Desconectado.')}
+function googleLogin(){
+  const cid=$('cid').value.trim();
+  if(!cid){sst('Cole o ID do cliente OAuth.',true);return}
+  if(typeof google==='undefined'||!google.accounts){sst('A biblioteca do Google não carregou. Verifique a internet.',true);return}
+  LS.set('yt_cid',cid);
+  sst('Abrindo o login do Google…');
+  google.accounts.oauth2.initTokenClient({
+    client_id:cid,scope:SCOPE,
+    error_callback:e=>sst('Login cancelado ou bloqueado ('+(e.type||'erro')+').',true),
+    callback:async r=>{
+      if(r.error){sst('Login não concluído: '+r.error,true);return}
+      accessToken=r.access_token;tokenExp=Date.now()+(r.expires_in||3600)*1000;apiKey='';
+      try{
+        sst('Procurando sua live…');
+        const chat=await findLive();
+        if(!chat){sst('Não achei live ativa ou agendada nesse canal.',true);return}
+        closeSetup();pollChat(chat);
+      }catch(e){sst('Erro: '+e.message,true)}
+    }
+  }).requestAccessToken({prompt:''});
+}
+async function keyConnect(){
+  const key=$('key').value.trim(),id=vidId($('vid').value);
+  if(!key||!id){sst('Preencha a chave de API e o link da live.',true);return}
+  LS.set('yt_key',key);LS.set('yt_vid',$('vid').value);
+  apiKey=key;accessToken='';
+  try{
+    sst('Conectando…');
+    const v=await yt(`videos?part=liveStreamingDetails&id=${id}`);
+    const chat=v.items&&v.items[0]&&v.items[0].liveStreamingDetails&&v.items[0].liveStreamingDetails.activeLiveChatId;
+    if(!chat){sst('Não achei chat ativo nessa live.',true);return}
+    closeSetup();pollChat(chat);
+  }catch(e){sst('Erro: '+e.message,true)}
+}
+$('bSetup').onclick=openSetup;$('bClose').onclick=closeSetup;
+$('bGoogle').onclick=googleLogin;$('bKey').onclick=keyConnect;$('bStop').onclick=()=>stop();
+$('bLive').onclick=()=>{const on=document.body.classList.toggle('live');$('bLive').textContent=on?'Sair do modo transmissão':'Modo transmissão'};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSetup()});
+$('cid').value=LS.get('yt_cid');$('key').value=LS.get('yt_key');$('vid').value=LS.get('yt_vid');
+$('fileWarn').hidden=location.protocol!=='file:';
+build();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
