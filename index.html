@@ -332,6 +332,8 @@ function loop(t){
   const dt=Math.min(.05,(t-last)/1000);last=t;
   tickCountdown();
   const bloq=state!=='done',rb=$('bReveal');if(rb.disabled!==bloq)rb.disabled=bloq;
+  const trav=state==='countdown'||state==='run';
+  for(const id of ['bReset','bClear']){const b2=$(id);if(b2.disabled!==trav)b2.disabled=trav}
   for(let i=0;i<4;i++)step(dt/4);
   draw();requestAnimationFrame(loop);
 }
@@ -372,7 +374,7 @@ function beginRace(){
   balls.forEach(b=>b.vx=(Math.random()-.5)*20);camMode='auto';state='run';$('bGo').disabled=false;
   toast('Valendo! 🎱',2000);
 }
-function reset(){players.forEach(p=>p.rev=false);state='ready';$('bGo').disabled=false;rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
+function reset(){if(state==='countdown'||state==='run')return;players.forEach(p=>p.rev=false);state='ready';$('bGo').disabled=false;rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
 function shake(){
   if(state!=='run')return;
   for(const b of balls){if(b.done)continue;b.vx+=(Math.random()-.5)*500;b.vy-=Math.random()*220;b.idle=0}
@@ -394,7 +396,7 @@ $('bAdd').onclick=()=>{if(addPlayer($('man').value))$('man').value=''};
 $('man').onkeydown=e=>{if(e.key==='Enter')$('bAdd').click()};
 $('bTest').onclick=()=>{const n=['Ana','Bruno','Carla','Diego','Eva','Fábio','Gi','Hugo','Iris','João','Kaká','Lia','Marcos','Nina','Otto','Paula','Rafa','Sol','Tiago','Uma','Vitor','Wesley','Xuxa','Yuri','Zeca','Bia','Caio','Duda','Enzo','Flor'];
   if(state!=='ready')return;const k=Math.random().toString(36).slice(2,5);n.forEach(x=>addPlayer(x+'_'+k,'t:'+x+k))};
-$('bClear').onclick=()=>{if(state==='run')return;players=[];pool=[];cycle=0;dupes=new Set();brawlerMode=false;$('bGo').disabled=false;seen=new Set();rank=[];$('rk').replaceChildren();$('fin').textContent='';state='ready';renderPlayers();build()};
+$('bClear').onclick=()=>{if(state==='run'||state==='countdown')return;players=[];pool=[];cycle=0;dupes=new Set();brawlerMode=false;$('bGo').disabled=false;seen=new Set();rank=[];$('rk').replaceChildren();$('fin').textContent='';state='ready';renderPlayers();build()};
 
 /* ---------- YouTube ---------- */
 const SCOPE='https://www.googleapis.com/auth/youtube.readonly';
