@@ -140,7 +140,8 @@ let players=[],balls=[],pegs=[],segs=[],tris=[],state='ready',gateY=0,finishY=0,
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h%360};
 const col=h=>`hsl(${h} 85% 62%)`;
 const BRAWLERS=['Shelly', 'Colt', 'Bull', 'Brock', 'Rico', 'Spike', 'Corvo', 'Nita', 'El Primo', 'Barley', 'Poco', 'Jessie', 'Dynamike', 'Bo', 'Mortis', 'Tara', 'Piper', 'Pam', 'Darryl', 'Penny', 'Frank', 'Eugênio', 'Carl', 'Rosa', 'Bibi', 'Tick', '8-Bit', 'Sandy', 'EMZ', 'Bea', 'Max', 'Mister P', 'Jacky', 'Sprout', 'Gale', 'Nani', 'Surge', 'Colette', 'Amber', 'Lou', 'Byron', 'Edgar', 'Ruffs', 'Stu', 'Belle', 'Squeak', 'Buzz', 'Griff', 'Ash', 'Meg', 'Lola', 'Grom', 'Fang', 'Eve', 'Janet', 'Otis', 'Sam', 'Gus', 'Buster', 'Chester', 'Gray', 'Mandy', 'R-T', 'Willow', 'Maisie', 'Hank', 'Cordelius', 'Doug', 'Pearl', 'Chuck', 'Charlie', 'Mico', 'Kit', 'Larry & Lawrie', 'Angelo', 'Melodie', 'Lily', 'Draco', 'Berry', 'Clancy', 'Moe', 'Kenji', 'Juju', 'Shade', 'Meeple', 'Glowy', 'Finx', 'Alli', 'Jae-yong', 'Lumi', 'Kaze', 'Gigi', 'Ollie', 'Pierce', 'Ziggy', 'Trunk', 'Mina', 'Najia', 'Starr Nova', 'Sirius', 'Bolt', 'Cosmo', 'Wendy', 'Damian', 'Vince', 'Nori'];
-const COUNTDOWN=30;let speed=1,cdSpeed=1,cdEnd=0,shakeEnd=0,raceT=0;
+const SHOUTS={"Shelly": "¡BANG!", "Colt": "Too pretty for pain!", "Bull": "Don't mess with the Bull!", "Brock": "Brock is OP!", "El Primo": "EEEEEL PRIMOOO!", "Barley": "Bottoms up!", "Poco": "Poco loco!", "Nita": "BEAR!", "Jessie": "Say hello to my little friend!", "Dynamike": "Who wants some TNT?!", "Bo": "I fight for my ancestors!", "Piper": "Gimme some sugar!", "Pam": "Wham, bam, here comes Pam!", "Mortis": "I am a creature of the night!", "Tara": "(Risadas e grunhidos místicos)", "Corvo": "I'm the boss of bosses!", "Spike": "(Silêncio absoluto)", "Darryl": "Show me the booty!", "Penny": "Number one!", "Frank": "URRRGH!", "Eugênio": "HABABLABLA!", "Carl": "Geology rocks!", "Rosa": "Botany power!", "Bibi": "Mr. Bat says hi!", "Tick": "(Sons de relógio e bomba)", "8-Bit": "GAME OVER!", "Sandy": "So tired...", "EMZ": "And I'm like, OMG!", "Bea": "Bee-lieve in yourself!", "Max": "Max energy!", "Mister P": "(Sons irritados de pinguim)", "Jacky": "What the %$!# was that?!", "Sprout": "I like trees!", "Gale": "Old Gale's still got it!", "Nani": "I'm so sorry!", "Surge": "Surge protector!", "Colette": "This is so cool!", "Amber": "Fire in the hole!", "Lou": "Uncle Lou's here for you!", "Byron": "Sensational!", "Edgar": "This is so lame...", "Ruffs": "To infinity and beyond!", "Stu": "S-s-spectacular!", "Belle": "Gold rush!", "Squeak": "(Sons fofos de geleia)", "Buzz": "I'm a lifesaver!", "Griff": "Money, money, money!", "Ash": "Clean up time!", "Meg": "This is red hot!", "Lola": "I'm a star!", "Grom": "I hear children screaming!", "Fang": "Fangs out!", "Eve": "For my babies!", "Janet": "Rocket girl!", "Otis": "(Sons de borrifador de tinta)", "Sam": "In your face!", "Gus": "Spooky!", "Buster": "Blockbuster!", "Chester": "Let's do something chaotic!", "Gray": "Pew!", "Mandy": "Sugar rush!", "R-T": "I see everything!", "Willow": "You're mine now!", "Maisie": "Fire safety first!", "Hank": "Prawn ready!", "Cordelius": "Welcome to the Kingdom!", "Doug": "Hot dog!", "Pearl": "Fresh out of the oven!", "Chuck": "Choo-choo!", "Charlie": "Welcome to my web!", "Mico": "Going bananas!", "Kit": "Meow!", "Larry & Lawrie": "By the book!", "Angelo": "Fabulous!", "Melodie": "K-Pop power!", "Lily": "(Sons de sombras)", "Draco": "Unleash the dragon!", "Berry": "Sweet service!", "Clancy": "Shell-shocked!", "Moe": "Underground power!", "Kenji": "Slice and dice!", "Juju": "Voodoo magic!", "Shade": "Into the dark!", "Meeple": "Game time!", "Glowy": "Glow time!", "Finx": "Ancient powers!", "Alli": "Wild nature!", "Jae-yong": "Tech overload!", "Lumi": "Sparkle and shine!", "Kaze": "Swift like the wind!", "Gigi": "Gears turning!", "Ollie": "Skate or die!", "Pierce": "Sharp aim!", "Ziggy": "Electrifying!", "Trunk": "Timber!", "Mina": "Sonic boom!", "Najia": "Venomous strike!", "Starr Nova": "To the stars!", "Cosmo": "Galactic order!", "Sirius": "Behold the stars!", "Bolt": "Thunder struck!", "Wendy": "Breeze along!", "Damian": "Infernal flame!", "Vince": "Classy victory!", "Nori": "Deep sea strike!"};
+const COUNTDOWN=30;let speed=1,cdSpeed=1,cdEnd=0,shakeEnd=0,raceT=0,nextShout=10,shout=null;
 const REDUCE=typeof matchMedia!=='undefined'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 let pool=[],cycle=0,dupes=new Set(),brawlerMode=false;
 const al=p=>p.base+(dupes.has(p.base)?' '+p.k:'');
@@ -212,6 +213,7 @@ function step(dt){
   if(state==='ready'||state==='countdown')return;
   const run=state==='run',A=[];
   if(run)raceT+=dt;
+  if(run&&raceT>=nextShout){nextShout+=10;fireShout()}
   for(const b of balls){
     b.vy+=G*dt;const dr=b.done?DRAG*4:DRAG;b.vx*=1-dr*dt;b.vy*=1-dr*dt;
     const sp=Math.hypot(b.vx,b.vy);if(sp>1300){b.vx*=1300/sp;b.vy*=1300/sp}
@@ -265,6 +267,34 @@ function step(dt){
 }
 
 /* ---------- desenho ---------- */
+function fireShout(){
+  let lead=null;
+  for(const b of balls)if(!b.done&&(!lead||b.y>lead.y))lead=b;
+  if(!lead)return;
+  const nome=lead.p.base||lead.p.name,agora=Date.now();
+  shout={b:lead,text:SHOUTS[nome]||(String(nome).toUpperCase()+'!'),t0:agora,t1:agora+3500};
+}
+function drawShout(){
+  if(!shout)return;
+  const agora=Date.now();
+  if(agora>shout.t1){shout=null;return}
+  const b=shout.b;
+  if(b.y<camY-60||b.y>camY+VH+60)return;
+  const k=Math.min(1,(agora-shout.t0)/180),alfa=Math.min(1,(shout.t1-agora)/400);
+  const txt=shout.text,som=txt.startsWith('(');
+  ctx.save();ctx.globalAlpha=alfa;
+  ctx.font=(som?'italic ':'bold ')+'13px sans-serif';
+  const w=Math.min(W-40,ctx.measureText(txt).width+22),h=28,ponta=b.y-R-4;
+  const bx=Math.max(6,Math.min(W-14-6-w,b.x-w/2)),by=ponta-6-h,ax=Math.max(bx+12,Math.min(bx+w-12,b.x));
+  ctx.translate(ax,ponta);ctx.scale(k,k);ctx.translate(-ax,-ponta);
+  ctx.fillStyle='#ffffff';ctx.strokeStyle='#ffc83d';ctx.lineWidth=2;
+  ctx.beginPath();ctx.rect(bx,by,w,h);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(ax-6,by+h);ctx.lineTo(ax,ponta);ctx.lineTo(ax+6,by+h);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(ax-5,by+h);ctx.lineTo(ax+5,by+h);ctx.stroke();
+  ctx.fillStyle='#14112b';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(txt,bx+w/2,by+h/2+.5);
+  ctx.restore();
+}
 function drawCountdown(){
   const left=Math.max(0,Math.ceil((cdEnd-Date.now())/1000*cdSpeed)),cx=(W-14)/2,cy=VH/2;
   ctx.fillStyle='rgba(14,12,32,.85)';ctx.fillRect(30,cy-200,W-14-60,330);
@@ -332,6 +362,7 @@ function draw(){
     ctx.textAlign=left?'right':'left';
     ctx.lineWidth=3;ctx.strokeStyle='#0e0c20';ctx.strokeText(nm,tx,b.y);ctx.fillStyle='#fff';ctx.fillText(nm,tx,b.y);
   }
+  drawShout();
   ctx.restore();
   minimap(act);
   if(state==='countdown')drawCountdown();
@@ -387,11 +418,11 @@ function start(){
 }
 function tickCountdown(){if(state==='countdown'&&Date.now()>=cdEnd)beginRace()}
 function beginRace(){
-  players.forEach(p=>p.rev=false);shuffle(players);build();camY=0;rank=[];raceT=0;$('rk').replaceChildren();$('fin').textContent=`(0/${balls.length})`;
+  players.forEach(p=>p.rev=false);shuffle(players);build();camY=0;rank=[];raceT=0;nextShout=10;shout=null;$('rk').replaceChildren();$('fin').textContent=`(0/${balls.length})`;
   balls.forEach(b=>b.vx=(Math.random()-.5)*20);camMode='auto';state='run';$('bGo').disabled=false;
   toast('Valendo! 🎱',2000);
 }
-function reset(){if(state==='countdown'||state==='run')return;players.forEach(p=>p.rev=false);state='ready';$('bGo').disabled=false;rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
+function reset(){if(state==='countdown'||state==='run')return;shout=null;players.forEach(p=>p.rev=false);state='ready';$('bGo').disabled=false;rank=[];$('rk').replaceChildren();$('fin').textContent='';camY=0;camMode='auto';build();toast('Pronto para novo sorteio',1800)}
 function shake(auto){
   if(state!=='run')return;
   for(const b of balls){if(b.done)continue;b.vx+=(Math.random()-.5)*500;b.vy-=Math.random()*220;b.idle=0}
