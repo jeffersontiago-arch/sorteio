@@ -28,6 +28,10 @@ button:disabled{opacity:.45;cursor:default}
 #rank li.last{background:#4a2147;border-radius:6px;font-weight:700}
 #setup{position:fixed;inset:0;background:rgba(10,8,25,.88);display:flex;align-items:center;justify-content:center;z-index:10}
 #setup[hidden]{display:none}
+#advKey{padding:6px 10px}
+#advKey label,#advKey input{display:block;margin-top:8px}
+#advKey button{display:block;width:100%;margin-top:10px}
+[hidden]{display:none!important}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;width:min(480px,92vw);max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:8px}
 .card h3{font-size:13px;margin:10px 0 0}
 .note{margin:0;color:var(--mut);font-size:12px}
@@ -105,22 +109,29 @@ summary{cursor:pointer;color:var(--acc);font-weight:700}
     <h2>Conectar ao YouTube</h2>
     <p class="note">Faça isso antes de entrar ao vivo. Os dados ficam só neste navegador e somem da tela depois de conectar.</p>
     <h3>Opção 1: entrar com a conta do canal (recomendada)</h3>
-    <label for="cid">ID do cliente OAuth do Google (só na primeira vez)</label>
-    <input id="cid" type="password" autocomplete="off">
+    <div id="cidBox">
+      <label for="cid">ID do cliente OAuth do Google (só na primeira vez)</label>
+      <input id="cid" type="password" autocomplete="off">
+    </div>
     <button id="bGoogle" class="go">Entrar com Google e achar minha live</button>
     <div id="fileWarn" class="warn" hidden>Você abriu a página como arquivo. O login do Google só funciona abrindo por um endereço http, como http://localhost:8000 ou um site seu.</div>
-    <h3>Opção 2: chave de API + link da live</h3>
+    <details id="advKey"><summary>Opção 2 (avançado): chave de API + link da live</summary>
     <label for="key">Chave de API</label>
     <input id="key" type="password" autocomplete="off">
     <label for="vid">Link(s) ou ID(s) da live (pode colocar mais de uma, separadas por espaço)</label>
     <input id="vid" placeholder="https://youtube.com/watch?v=...">
     <button id="bKey">Conectar com a chave</button>
+    </details>
     <div id="sst"></div>
     <button id="bClose">Fechar (usar só nomes manuais)</button>
   </div>
 </div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
+// ID do cliente OAuth do Google. NÃO é segredo (pode ficar no código).
+// Cole entre as aspas, por exemplo: '123456-abc.apps.googleusercontent.com'
+// Se ficar vazio, a janela de conexão pede o ID, como antes.
+const CLIENT_ID='783772830924-uvtq5m33i9dvf4hbaio1jhq4nhh9v2hp.apps.googleusercontent.com';
 const $=id=>document.getElementById(id);
 const cv=$('c'),ctx=cv.getContext('2d');
 const W=600,VH=800,G=210,DRAG=1.1,SP=46,PEGROWS=88,TRI_T=64,TRI_H=32,TRAPS=[.3,.6,.9].map(f=>{let r=Math.round(PEGROWS*f);if(r%7===3)r++;return r});
@@ -465,7 +476,7 @@ async function pollMany(lives){
 }
 function stop(keep){polling=false;btns();if(!keep)status('Desconectado.')}
 function googleLogin(){
-  const cid=$('cid').value.trim();
+  const cid=CLIENT_ID||$('cid').value.trim();
   if(!cid){sst('Cole o ID do cliente OAuth.',true);return}
   if(typeof google==='undefined'||!google.accounts){sst('A biblioteca do Google não carregou. Verifique a internet.',true);return}
   LS.set('yt_cid',cid);
@@ -504,6 +515,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSetup()});
 $('auto').checked=LS.get('auto_shake')==='1';$('auto').onchange=()=>LS.set('auto_shake',$('auto').checked?'1':'0');
 $('cid').value=LS.get('yt_cid');$('key').value=LS.get('yt_key');$('vid').value=LS.get('yt_vid');
 $('fileWarn').hidden=location.protocol!=='file:';
+$('cidBox').hidden=!!CLIENT_ID;$('advKey').open=!CLIENT_ID;
 build();requestAnimationFrame(loop);
 </script>
 </body>
